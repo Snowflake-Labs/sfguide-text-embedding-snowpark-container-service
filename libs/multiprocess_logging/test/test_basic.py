@@ -1,6 +1,7 @@
 import logging
 import multiprocessing as mp
 from multiprocessing.shared_memory import SharedMemory
+from time import sleep
 
 import multiprocess_logging as mpl
 import numpy as np
@@ -75,7 +76,7 @@ def test_two_processes(caplog):
     _ensure_semaphore_not_allocated(COMMUNICATION_LOCK_NAME)
     librt_semaphore.allocate(COMMUNICATION_LOCK_NAME)
     lock = librt_semaphore.open(COMMUNICATION_LOCK_NAME)
-    librt_semaphore.acquire(lock, blocking=False)
+    assert librt_semaphore.acquire(lock, blocking=False)
 
     # Prepare to receive log messages over the queue.
     mpl.start_listening_for_logs(LOG_QUEUE_SPEC)
@@ -88,6 +89,14 @@ def test_two_processes(caplog):
         # Wait for the other process to do its thing.
         librt_semaphore.acquire(lock, blocking=True)
 
+        # Wait for the queue to empty via the log listener thread.
+        for _retry in range(500):
+            if not mpl._logging_queue.empty():
+                sleep(0.01)
+            else:
+                break
+
+        # Ensure the logs went through.
         try:
             assert "Debug" not in caplog.text
             assert "Info" in caplog.text
