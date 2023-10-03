@@ -1,4 +1,4 @@
-${EMBED_TEXT_ROOT}/libs/simple_lru_cache
+${BUILD_ROOT}/libs/simple_lru_cache
 anyio==3.6.2
 httpx==0.24.0
 starlette==0.26.1

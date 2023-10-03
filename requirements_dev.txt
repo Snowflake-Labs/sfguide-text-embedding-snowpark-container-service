@@ -1,9 +1,0 @@
--r ${EMBED_TEXT_ROOT}/service_api/requirements.txt
--r ${EMBED_TEXT_ROOT}/service_embed_loop/requirements.txt
--r ${EMBED_TEXT_ROOT}/services_common_code/requirements.txt
-autoflake
-black
-isort
-mypy
-pre-commit
-pytest

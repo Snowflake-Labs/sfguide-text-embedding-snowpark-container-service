@@ -1,10 +1,6 @@
-# NOTE: This Dockerfile is written to be executed in the context of the root of
-# the repository.
-
-# With chunky dependencies like we've got, even `bullseye` feels `slim`.
 FROM python:3.8.16-bullseye
 WORKDIR /root
-ENV EMBED_TEXT_ROOT="/root"
+ENV BUILD_ROOT="/root"
 
 # Install the core application (not user code).
 COPY ./libs ./libs
