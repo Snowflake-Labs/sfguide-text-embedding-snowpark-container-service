@@ -2,7 +2,6 @@ import asyncio
 import contextlib
 import warnings
 from dataclasses import dataclass
-from multiprocessing import resource_tracker
 from multiprocessing.shared_memory import SharedMemory
 from queue import Full
 from time import sleep
@@ -24,6 +23,7 @@ from ._typing import NonscalarNDArray
 from ._typing import T_Key
 from ._typing import T_KVDtype
 from ._typing import T_Value
+from ._utils import unregister_shared_memory_tracking
 
 # Type declarations.
 KVArray = NonscalarNDArray[T_KVDtype]
@@ -339,9 +339,7 @@ def unlink(spec: HashMapSpec) -> None:
 def open(spec: HashMapSpec) -> HashMap:
     lock = librt_semaphore.open(name=spec.lock_name)
     mem = SharedMemory(name=spec.memory_name)
-    # Tell Python to not be so clever about automatically deallocating this memory.
-    # See: https://stackoverflow.com/a/73159334
-    resource_tracker.unregister(name=f"/{mem.name}", rtype="shared_memory")
+    unregister_shared_memory_tracking(mem.name)
     # NOTE: We use `np.ndarray` directly to avoid buffer management that makes
     # closing this trickier. See: https://stackoverflow.com/a/72462697
     size_array: SizeArray = np.ndarray(

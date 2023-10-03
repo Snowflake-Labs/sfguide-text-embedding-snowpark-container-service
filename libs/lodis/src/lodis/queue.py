@@ -2,7 +2,6 @@ import contextlib
 import logging
 import warnings
 from dataclasses import dataclass
-from multiprocessing import resource_tracker
 from multiprocessing.shared_memory import SharedMemory
 from queue import Empty
 from queue import Full
@@ -20,6 +19,7 @@ from ._constants import POLL_SLEEP_DURATION
 from ._typing import NonscalarNDArray
 from ._typing import T_Item
 from ._typing import T_ItemDtype
+from ._utils import unregister_shared_memory_tracking
 
 logger = logging.getLogger(__name__)
 
@@ -282,9 +282,7 @@ def open(spec: QueueSpec) -> Queue:
     lock = librt_semaphore.open(name=spec.lock_name)
     notempty_sem = librt_semaphore.open(name=spec.notempty_sem_name)
     mem = SharedMemory(name=spec.memory_name)
-    # Tell Python to not be so clever about automatically deallocating this memory.
-    # See: https://stackoverflow.com/a/73159334
-    resource_tracker.unregister(name=f"/{mem.name}", rtype="shared_memory")
+    unregister_shared_memory_tracking(mem.name)
 
     # NOTE: We use `np.ndarray` directly to avoid buffer management that makes
     # closing this trickier. See: https://stackoverflow.com/a/72462697
