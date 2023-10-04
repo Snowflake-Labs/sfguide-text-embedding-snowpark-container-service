@@ -2,9 +2,7 @@
 [project]
 name = "buildlib"
 version = "1.0.0"
-authors = [
-    {name = "Luke Merrick", email = "luke.merrick@snowflake.com"},
-]
+authors = [{ name = "Luke Merrick", email = "luke.merrick@snowflake.com" }]
 description = "."
 requires-python = ">=3.8"
 classifiers = [
@@ -14,9 +12,7 @@ classifiers = [
     "Programming Language :: Python :: 3.8",
     "Programming Language :: Python :: 3.9",
 ]
-dependencies = [
-    "python-on-whales>=0.64",
-]
+dependencies = ["python-on-whales>=0.64"]
 
 [build-system]
 requires = ["setuptools>=61.0"]

@@ -4,24 +4,23 @@ from typing import Iterator
 
 from python_on_whales import docker
 
-DOCKERFILE_PATH = Path(__file__).resolve().parents[1] / "docker" / "Dockerfile"
-CONTEXT_PATH = Path(__file__).resolve().parents[3]
 
-
-def build() -> None:
-    """Usage: `build_embed_service --dockerfile-path services/e5_service/deploy/Dockerfile .`"""
-    if not CONTEXT_PATH.is_dir():
-        print(f'"{CONTEXT_PATH}" does not exist or is not a directory')
+def build(build_dir: Path) -> None:
+    if not build_dir.is_dir():
+        raise ValueError()
+    if not build_dir.name == "build":
+        raise ValueError()
+    context_path = build_dir.resolve().parent
+    dockerfile_path = context_path / "dockerfiles" / "Dockerfile"
+    if not dockerfile_path.is_file():
+        print(f'"{dockerfile_path}" does not exist or is not a file')
         raise RuntimeError()
-    if not DOCKERFILE_PATH.is_file():
-        print(f'"{DOCKERFILE_PATH}" does not exist or is not a file')
-        raise RuntimeError()
-
     log_stream = docker.build(
-        context_path=CONTEXT_PATH,
+        context_path=context_path,
+        # TODO: Switch to amd64, switch tag, etc. to support more flexible builds.
         # platforms=["linux/amd64"],
         platforms=["linux/arm64"],
-        file=DOCKERFILE_PATH,
+        file=dockerfile_path,
         tags="embed_text_service:latest_native_cpu",
         stream_logs=True,
     )

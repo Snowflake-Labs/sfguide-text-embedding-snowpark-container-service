@@ -19,8 +19,11 @@ TODO: Explain what a configuration should look like!
 ├── configurations             <- configurations you can adapt
 │   ├── <examples>
 │   ├── <put your code here>
+├── dockerfiles
+│   ├── Dockerfile             <- recipe to build the service Docker image
+│   └── Dockerfile.dockerignore
 ├── libs
-│   ├── buildlib               <- builds your service's Docker image
+│   ├── buildlib               <- configures and executes Docker image building
 │   ├── lodis                  <- provides queueing
 │   ├── multiprocess_logging   <- provides logging
 │   └── simple_lru_cache       <- provides caching
