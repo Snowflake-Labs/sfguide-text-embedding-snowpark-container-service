@@ -20,6 +20,8 @@ COPY ./build ./build
 RUN \
     # Bring in artifacts from the user.
     mv ./build/data ./data \
+    # Overwrite the placeholder config with the user-specified config.
+    && mv ./build/config.py ./services_common_code/config.py \
     # Overwrite the placeholder embedding logic with the user-specified logic.
     && mv ./build/embed.py ./service_embed_loop/embed.py
 RUN ./venv_embed_loop/bin/python -m pip install -r ./build/requirements.txt
@@ -28,4 +30,5 @@ COPY ./build/embed.py ./service_embed_loop/embed.py
 
 # Run the API application.
 ENV PYTHONPATH=.
+HEALTHCHECK --interval=5s --timeout=1s CMD curl --fail http://localhost:8000/healthcheck || exit 1
 CMD ["./venv_api/bin/python", "./service_api/main.py"]

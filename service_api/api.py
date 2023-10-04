@@ -155,4 +155,11 @@ async def embed(request: Request) -> JSONResponse:
     return JSONResponse(response_json)
 
 
-ROUTES = [Route("/embed", embed, methods=["POST"])]
+async def healthcheck(request: Request) -> JSONResponse:
+    return JSONResponse({"success": True})
+
+
+ROUTES = [
+    Route("/embed", embed, methods=["POST"]),
+    Route("/healthcheck", healthcheck, methods=["GET"]),
+]

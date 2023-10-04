@@ -1,9 +1,9 @@
 
 [project]
-name = "buildlib"
+name = "service-config"
 version = "1.0.0"
 authors = [{ name = "Luke Merrick", email = "luke.merrick@snowflake.com" }]
-description = "Utilities for automating service build and deploy."
+description = ""
 requires-python = ">=3.8"
 classifiers = [
     "Natural Language :: English",
@@ -12,7 +12,7 @@ classifiers = [
     "Programming Language :: Python :: 3.8",
     "Programming Language :: Python :: 3.9",
 ]
-dependencies = ["python-on-whales>=0.64"]
+dependencies = []
 
 [build-system]
 requires = ["setuptools>=61.0"]

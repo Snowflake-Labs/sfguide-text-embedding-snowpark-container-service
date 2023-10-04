@@ -73,3 +73,11 @@ def stop_listening_for_logs():
     _logging_queue.put(END_LOGGING_SENTINEL_MESSAGE)
     _logging_thread.join()
     lodis.queue.close(_logging_queue)
+
+
+def setup_root_handler(log_handler: logging.Handler, level: int = logging.INFO) -> None:
+    for handler in logging.root.handlers[:]:
+        logging.root.removeHandler(handler)
+    root_logger = logging.getLogger()
+    root_logger.addHandler(log_handler)
+    root_logger.setLevel(level)

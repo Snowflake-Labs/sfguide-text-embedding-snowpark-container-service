@@ -1,4 +1,5 @@
 # `pip install -r requirements.txt` must be executed from the parent directory.
 ${BUILD_ROOT}/libs/lodis
 ${BUILD_ROOT}/libs/multiprocess_logging
+${BUILD_ROOT}/libs/service_config
 numpy==1.24.2

@@ -11,8 +11,10 @@ import lodis.small_priority_queue
 import numpy as np
 from embed import get_embed_fn
 from multiprocess_logging import LodisQueueLogHandler
+from multiprocess_logging import setup_root_handler
 
-from services_common_code.config import EMBEDDING_PROCESS_PARAMETERS
+from services_common_code import lodis_configs
+from services_common_code.config import USER_CONFIG
 
 
 def main() -> None:
@@ -22,20 +24,14 @@ def main() -> None:
 
     # Set up logging.
     logger = logging.getLogger(__name__)
-    log_handler = LodisQueueLogHandler(EMBEDDING_PROCESS_PARAMETERS.log_queue_spec)
-    for handler in logging.root.handlers[:]:
-        logging.root.removeHandler(handler)
-    root_logger = logging.getLogger()
-    root_logger.addHandler(log_handler)
-    root_logger.setLevel(logging.INFO)
+    log_handler = LodisQueueLogHandler(lodis_configs.LOG_QUEUE_SPEC)
+    setup_root_handler(log_handler, level=logging.INFO)
     logger.info("Embed loop starting")
 
     # Open access to the `lodis`-based shared input queue and result hashmap.
     logger.info("Opening input queue and result map")
-    input_queue = lodis.small_priority_queue.open(
-        EMBEDDING_PROCESS_PARAMETERS.input_queue_spec
-    )
-    result_map = lodis.hashmap.open(EMBEDDING_PROCESS_PARAMETERS.result_map_spec)
+    input_queue = lodis.small_priority_queue.open(lodis_configs.INPUT_QUEUE_SPEC)
+    result_map = lodis.hashmap.open(lodis_configs.RESULT_MAP_SPEC)
 
     # Set up signal handling so we can terminate the loop gracefully.
     is_looping = [True]  # We box this bool in a list so we can pass it by reference.
@@ -44,7 +40,6 @@ def main() -> None:
         nonlocal is_looping, input_queue
         is_looping[0] = False
 
-        # TODO: Avoid the need for this workaround.
         # Add a "flush" item to the queue in case the loop is stuck waiting for
         # the next item.
         input_queue.put((-1, "done"))
@@ -60,7 +55,7 @@ def main() -> None:
         is_looping=is_looping,
         input_queue=input_queue,
         result_map=result_map,
-        max_batch_size=EMBEDDING_PROCESS_PARAMETERS.max_batch_size,
+        max_batch_size=USER_CONFIG.max_batch_size,
     )
 
     # Cleanup when signaled to terminate the loop.

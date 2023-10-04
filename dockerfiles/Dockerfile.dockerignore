@@ -1,2 +1,11 @@
 configurations/
+libs/buildlib/
 testing/
+.github/
+.mypy_cache/
+.pytest_cache/
+.vscode/
+README.md
+.gitignore
+.pre-commit-config.yaml
+mypy.ini

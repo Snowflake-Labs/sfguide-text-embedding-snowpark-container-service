@@ -7,6 +7,11 @@ If you're aiming to deploy a text embedding model to Snowpark Container Services
 Basic usage involves checking out the examples in the `configurations` directory, picking the example most similar to your needs, copying it, and adapting it.
 
 
+### Configuring the Service
+
+
+
+
 ### Overview of a configuration
 
 ```
@@ -56,7 +61,7 @@ If you'd like to contribute, please just open a pull request! We kindly ask that
 
 ### Setting up your development environment
 
-Everything here targets building a Docker image based off of the `python:3.8.16-bullseye` base image, so you may run into issues if you are not developing on a Debian-like Linux environment and using Python 3.8. If you do run into issues, consider [developing inside a container with Visual Studio Code](https://code.visualstudio.com/docs/devcontainers/containers).
+Everything here targets building a Docker image based off of the `python:3.8.16-bullseye` base image, so you may run into issues if you are not developing on a Debian-like Linux environment and using Python 3.8. If you do run into issues, consider [developing inside a container with Visual Studio Code](https://code.visualstudio.com/docs/devcontainers/containers), though be aware that this might make some of the Docker stuff trickier.
 
 You may want to create a dedicated Python 3.8 [virtual environment](https://docs.python.org/3/library/venv.html) for this part.
 
