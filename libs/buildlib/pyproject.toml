@@ -12,7 +12,10 @@ classifiers = [
     "Programming Language :: Python :: 3.8",
     "Programming Language :: Python :: 3.9",
 ]
-dependencies = ["python-on-whales>=0.64"]
+dependencies = [
+    "python-on-whales>=0.64",
+    "snowflake-connector-python[pandas]>=3.2.1",
+]
 
 [build-system]
 requires = ["setuptools>=61.0"]
