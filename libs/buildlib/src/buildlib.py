@@ -1,15 +1,20 @@
 from contextlib import contextmanager
 from getpass import getpass
+from io import StringIO
 from pathlib import Path
+from tempfile import TemporaryDirectory
+from textwrap import dedent
 from time import sleep
 from typing import cast
 from typing import Iterator
 from typing import Optional
 
+import snowflake.connector.util_text
 from python_on_whales import Container
 from python_on_whales import docker
 
 SERVICE_NAME = "embed_text_service"
+SPEC_FILE = "embed_text_service.yaml"
 
 
 def build(build_dir: Path, platform: Optional[str] = None, tag: str = "latest") -> None:
@@ -61,6 +66,132 @@ def push(
     # Push!
     print(f"Pushing {specified_repo_name}")
     docker.push(specified_repo_name)
+
+
+def _run_sql(
+    connection: snowflake.connector.connection.SnowflakeConnection, command: str
+) -> None:
+    statements = snowflake.connector.util_text.split_statements(StringIO(command))
+    for statement, _is_put_or_get in statements:
+        print(statement)
+        connection.execute_string(statement)
+
+
+def deploy_service(
+    connection: snowflake.connector.connection.SnowflakeConnection,
+    role: str,
+    database: str,
+    schema: str,
+    spec_stage: str,
+    compute_pool: str,
+    image_repository: str,
+    image_database: Optional[str] = None,
+    image_schema: Optional[str] = None,
+    image_tag: str = "latest",
+    min_instances: int = 1,
+    max_instances: int = 1,
+    external_function_batch_size: int = 4,
+) -> None:
+    """
+    Deployment prerequisites:
+    - a database
+    - a schema
+    - an image repository
+    - a role that can create stages and services in the db/schema using images
+      from the image repository
+
+    Deployment entails the following:
+    - USE-ing the role, database, and schema
+    - Ensuring the service spec stage is created (if it doesn't already exist)
+    - Creating and uploading a service spec yaml file
+    - Creating the service
+    - Creating SQL functions that enable usage of the service
+    """
+    if image_repository.startswith("@"):
+        image_repository = image_repository[1:]
+    if spec_stage.startswith("@"):
+        spec_stage = spec_stage[1:]
+    if image_database is None:
+        image_database = database
+    if image_schema is None:
+        image_schema = schema
+
+    # Use the right role, database, and schema.
+    _run_sql(
+        connection, f"use role {role}; use database {database};" f"use schema {schema};"
+    )
+
+    # Create and upload the service spec.
+    spec_yaml = dedent(
+        f"""
+        spec:
+          containers:
+            - name: {SERVICE_NAME.replace("_", "-")}
+              image: /{image_database}/{image_schema}/{image_repository}/{SERVICE_NAME}:{image_tag}
+              readinessProbe:
+                port: 8000
+                path: /healthcheck
+          endpoint:
+            - name: endpoint
+              port: 8000
+        """
+    )
+    with TemporaryDirectory() as tmp_dir_name:
+        tmp_dir = Path(tmp_dir_name)
+        local_yaml_path = tmp_dir / SPEC_FILE
+        print(f"Writing to {local_yaml_path}:\n{spec_yaml}\n")
+        local_yaml_path.write_text(spec_yaml)
+        _run_sql(connection, f"create stage if not exists {spec_stage};")
+        _run_sql(connection, f"put file://{local_yaml_path} @{spec_stage};")
+
+    # Create the service.
+    _run_sql(connection, f"drop service if exists {SERVICE_NAME};")
+    create_statement = dedent(
+        f"""
+        create service {SERVICE_NAME}
+            in compute pool {compute_pool}
+            from @{spec_stage}
+            spec='{SPEC_FILE}'
+            min_instances = {min_instances}
+            max_instances = {max_instances};
+        """
+    )
+    _run_sql(connection, create_statement)
+
+    # Create the SQL functions needed to use the service.
+    embed_to_base64_create_statement = dedent(
+        f"""
+        create or replace function _embed_to_base64(input string)
+            returns string
+            service={SERVICE_NAME}!endpoint
+            max_batch_rows={external_function_batch_size}
+            as '/embed';
+        """
+    )
+    unpack_binary_array_create_statement = dedent(
+        """
+        create or replace function _unpack_binary_array(B binary)
+            returns array
+            language javascript
+            immutable
+            as
+            $$
+                return Array.from(new Float32Array(B.buffer));
+            $$;
+        """
+    )
+    embed_text_create_statement = dedent(
+        """
+        create or replace function embed_text(input string)
+            returns array
+            language SQL
+            as
+            $$_unpack_binary_array(to_binary(_embed_to_base64(input), 'BASE64'))$$;
+        """
+    )
+    _run_sql(connection, embed_to_base64_create_statement)
+    _run_sql(connection, unpack_binary_array_create_statement)
+    _run_sql(connection, embed_text_create_statement)
 
 
 def _is_healthy(container: Container) -> bool:
