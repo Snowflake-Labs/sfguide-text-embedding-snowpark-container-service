@@ -1,4 +1,5 @@
 from contextlib import contextmanager
+from getpass import getpass
 from pathlib import Path
 from time import sleep
 from typing import cast
@@ -34,6 +35,32 @@ def build(build_dir: Path, platform: Optional[str] = None, tag: str = "latest") 
     log_stream = cast(Iterator[str], log_stream)
     for line in log_stream:
         print(line, end="")
+
+
+def push(
+    repo_url: str,
+    username: Optional[str] = None,
+    password: Optional[str] = None,
+    tag: str = "latest",
+    skip_login: bool = False,
+) -> None:
+    # Log in.
+    if not skip_login:
+        if username is None:
+            username = input("Username: ")
+        if password is None:
+            password = getpass(f"Password for {username}: ")
+        docker.login(repo_url, username=username, password=password)
+
+    # Retag from docker.io/embed_text_service:latest to
+    # ....registry.snowflakecomputing.com/..../embed_text_service:latest .
+    default_repo_name = f"{SERVICE_NAME}:{tag}"
+    specified_repo_name = f"{repo_url}/{default_repo_name}"
+    docker.tag(default_repo_name, specified_repo_name)
+
+    # Push!
+    print(f"Pushing {specified_repo_name}")
+    docker.push(specified_repo_name)
 
 
 def _is_healthy(container: Container) -> bool:
