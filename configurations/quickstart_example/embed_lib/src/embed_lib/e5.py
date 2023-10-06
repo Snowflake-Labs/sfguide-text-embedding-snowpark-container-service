@@ -15,6 +15,7 @@ from transformers.models.bert.tokenization_bert_fast import BertTokenizerFast
 from ._batch_iter_util import iter_chunks
 
 logger = logging.getLogger(__name__)
+device = "cuda" if torch.cuda.is_available() else "cpu"
 
 
 @dataclass(frozen=True)
@@ -28,7 +29,7 @@ def load_e5_model(size: str = "large") -> E5Model:
     model_name = f"intfloat/e5-{size}-v2"
     logging.info(f"Loading model and tokenizer from Huggingface: `{model_name}`")
     tokenizer = BertTokenizerFast.from_pretrained(model_name)
-    model = cast(BertModel, BertModel.from_pretrained(model_name))
+    model = cast(BertModel, BertModel.from_pretrained(model_name)).to(device)
     return E5Model(tokenizer, model)
 
 
@@ -48,6 +49,7 @@ def _tokenize_batch(
 def _embed_batch(
     model: BertModel, batch_dict: Mapping[str, Tensor], normalize: bool
 ) -> Tensor:
+    batch_dict = {k: v.to(device) for k, v in batch_dict.items()}
     outputs = model(**batch_dict)
     embeddings = _average_pool(outputs.last_hidden_state, batch_dict["attention_mask"])
     if normalize:
@@ -63,6 +65,7 @@ def _tokenize_and_embed_batch(
     return embeddings
 
 
+@torch.no_grad()
 def embed(
     e5_model: E5Model,
     texts: Sequence[str],
@@ -73,8 +76,7 @@ def embed(
     res_batches = []
     pbar = tqdm(total=len(texts), disable=not progress_bar, desc="embedding")
     for chunk in iter_chunks(texts, batch_size):
-        with torch.no_grad():
-            res = _tokenize_and_embed_batch(e5_model, chunk, normalize=normalize)
+        res = _tokenize_and_embed_batch(e5_model, chunk, normalize=normalize)
         pbar.update(len(chunk))
         res_batches.append(res)
 
