@@ -142,7 +142,9 @@ def deploy_service(
         print(f"Writing to {local_yaml_path}:\n{spec_yaml}\n")
         local_yaml_path.write_text(spec_yaml)
         _run_sql(connection, f"create stage if not exists {spec_stage};")
-        _run_sql(connection, f"put file://{local_yaml_path} @{spec_stage};")
+        _run_sql(
+            connection, f"put file://{local_yaml_path} @{spec_stage} overwrite = true;"
+        )
 
     # Create the service.
     _run_sql(connection, f"drop service if exists {SERVICE_NAME};")
