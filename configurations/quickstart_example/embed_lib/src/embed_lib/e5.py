@@ -24,12 +24,11 @@ class E5Model:
     model: BertModel
 
 
-def load_e5_model(size: str = "large") -> E5Model:
-    assert size in ("small", "base", "large")
-    model_name = f"intfloat/e5-{size}-v2"
-    logging.info(f"Loading model and tokenizer from Huggingface: `{model_name}`")
-    tokenizer = BertTokenizerFast.from_pretrained(model_name)
-    model = cast(BertModel, BertModel.from_pretrained(model_name)).to(device)
+def load_e5_model(tokenizer_path: str, model_path: str) -> E5Model:
+    tokenizer = BertTokenizerFast.from_pretrained(tokenizer_path, local_files_only=True)
+    model = cast(
+        BertModel, BertModel.from_pretrained(model_path, local_files_only=True)
+    ).to(device)
     return E5Model(tokenizer, model)
 
 
