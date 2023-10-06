@@ -1,6 +1,24 @@
-FROM python:3.8.16-bullseye
+FROM nvidia/cuda:12.1.0-cudnn8-runtime-ubuntu22.04
+ARG TARGETPLATFORM
+ARG PYTHON_VERSION=3.8
 WORKDIR /root
 ENV BUILD_ROOT="/root"
+
+# Install Python via miniconda.
+RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+        curl && \
+    rm -rf /var/lib/apt/lists/*
+RUN case ${TARGETPLATFORM} in \
+         "linux/arm64")  MINICONDA_ARCH=aarch64  ;; \
+         *)              MINICONDA_ARCH=x86_64   ;; \
+    esac && \
+    curl -fsSL -v -o ~/miniconda.sh -O  "https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-${MINICONDA_ARCH}.sh"
+RUN chmod +x ~/miniconda.sh && \
+    bash ~/miniconda.sh -b -p /opt/conda && \
+    rm ~/miniconda.sh && \
+    /opt/conda/bin/conda install -y python=${PYTHON_VERSION} && \
+    /opt/conda/bin/conda clean -ya
+ENV PATH /opt/conda/bin:$PATH
 
 # Install the core application (not user code).
 COPY ./libs ./libs
