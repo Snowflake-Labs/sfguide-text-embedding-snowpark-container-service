@@ -7,6 +7,7 @@ from textwrap import dedent
 from time import sleep
 from typing import cast
 from typing import Iterator
+from typing import Literal
 from typing import Optional
 
 import snowflake.connector.util_text
@@ -17,7 +18,11 @@ SERVICE_NAME = "embed_text_service"
 SPEC_FILE = "embed_text_service.yaml"
 
 
-def build(build_dir: Path, platform: Optional[str] = None, tag: str = "latest") -> None:
+def build(
+    build_dir: Path,
+    platform: Literal["linux/amd64", "linux/arm64"] = "linux/amd64",
+    tag: str = "latest",
+) -> None:
     # Validate the `build_dir` is correct, that we have a Dockerfile, etc.
     if not build_dir.is_dir():
         raise ValueError()
