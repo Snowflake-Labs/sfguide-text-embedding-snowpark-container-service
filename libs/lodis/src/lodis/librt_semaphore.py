@@ -17,8 +17,15 @@ SemaphoreMemoryAddress = NewType(  # type: ignore
     "SemaphoreMemoryAddress", POINTER(c_int)
 )
 
-
-LIBRT = cdll.LoadLibrary("librt.so")
+LIBRT = None
+for librt_name in ("librt.so", "librt.so.1", "libc.so"):
+    try:
+        LIBRT = cdll.LoadLibrary(librt_name)
+        break
+    except OSError:
+        pass
+if LIBRT is None:
+    raise RuntimeError("Could not find LIBRT")
 LIBRT.sem_open.restype = POINTER(c_int)  # Cannot be `SemaphoreMemoryAddress`
 LIBRT.sem_trywait.restype = c_int
 LIBRT.sem_wait.restype = c_int
