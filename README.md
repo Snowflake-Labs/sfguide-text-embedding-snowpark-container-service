@@ -61,9 +61,9 @@ If you'd like to contribute, please just open a pull request! We kindly ask that
 
 ### Setting up your development environment
 
-Everything here targets building a Docker image based off of the `python:3.8.16-bullseye` base image, so you may run into issues if you are not developing on a Debian-like Linux environment and using Python 3.8. If you do run into issues, consider [developing inside a container with Visual Studio Code](https://code.visualstudio.com/docs/devcontainers/containers), though be aware that this might make some of the Docker stuff trickier.
+Everything here targets building a Docker image based off of the `python:3.8.16-bullseye` base image, so you may run into issues if you are not developing on a Debian-like Linux environment and using Python 3.8+. If you do run into issues, consider [developing inside a container with Visual Studio Code](https://code.visualstudio.com/docs/devcontainers/containers), though be aware that this might make some of the Docker stuff trickier.
 
-You may want to create a dedicated Python 3.8 [virtual environment](https://docs.python.org/3/library/venv.html) for this part.
+You may want to create a dedicated Python 3.8+ [virtual environment](https://docs.python.org/3/library/venv.html) for this part.
 
 ``` shell
 # If you want nice IDE autocomplete, the dependencies for all the services.
