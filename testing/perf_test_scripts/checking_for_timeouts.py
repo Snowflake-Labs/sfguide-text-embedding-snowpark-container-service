@@ -18,15 +18,20 @@ from tqdm import tqdm
 
 ENDPOINT = "http://localhost:8000/embed"
 EXAMPLE_TEXT = Path(__file__).resolve().parent.joinpath("example_text.txt").read_text()
-BATCH_SIZE = 10
-N_BATCHES_PER_QUERY = 3
-N_WORDS_PER_ROW = 60
-N_SIMULTANEOUS_QUERIES = 20
-RETRY_WAIT_SEC = 0.2
+BATCH_SIZE = 5
+N_BATCHES_PER_QUERY = 2
+N_WORDS_PER_ROW = 300
+N_SIMULTANEOUS_QUERIES = 10
+RETRY_WAIT_SEC = 0.5
 
 
 async def main() -> None:
-    with tqdm(total=BATCH_SIZE * N_BATCHES_PER_QUERY * N_SIMULTANEOUS_QUERIES) as pbar:
+    total_rows = BATCH_SIZE * N_BATCHES_PER_QUERY * N_SIMULTANEOUS_QUERIES
+    print(
+        f"Embedding {total_rows} rows via {N_SIMULTANEOUS_QUERIES} "
+        f"simultaneous queries of {N_BATCHES_PER_QUERY} batches of {BATCH_SIZE} rows"
+    )
+    with tqdm(total=total_rows, desc="Rows embedded") as pbar:
         query_tasks = [
             asyncio.create_task(run_query(N_BATCHES_PER_QUERY, pbar))
             for _ in range(N_SIMULTANEOUS_QUERIES)
@@ -37,13 +42,14 @@ async def main() -> None:
             times, last_attempt_times, retries = zip(*result)
             df_res_map[i] = pd.DataFrame(
                 {
-                    "query_time": times,
-                    "last_request_time": last_attempt_times,
+                    "batch_time": times,
+                    "last_retry_time": last_attempt_times,
                     "retries": retries,
                 }
             )
-        df_res = pd.concat(df_res_map, axis=0, names=["query"])
-        df_res.to_csv("timeout_check_results.csv")
+        df_res = pd.concat(df_res_map, axis=0, names=["query", "batch"])
+        print()
+        print(df_res)
 
 
 async def run_query(
