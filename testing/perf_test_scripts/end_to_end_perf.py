@@ -62,10 +62,6 @@ def print_results(
         f"{bulk_batch_times.mean():.2f} ± {2 * bulk_batch_times.std(): .2f} | "
         f"max = {bulk_batch_times.max():.2f}"
     )
-    # print(
-    #     f"Intermittent query execution times (in sec): "
-    #     f"{intermittent_times.round(2).tolist()}"
-    # )
     print(
         "Intermittent query execution time stats (in sec): μ ± 2σ = "
         f"{intermittent_times.mean():.2f} ± {2 * intermittent_times.std(): .2f} | "
