@@ -48,7 +48,7 @@ def main() -> None:
     signal.signal(signal.SIGTERM, _handle_signal)
 
     # Run the embedding loop.
-    embed_fn = get_embed_fn(logger=logger)
+    embed_fn = get_embed_fn()
     _embedding_loop(
         logger=logger,
         embed_fn=embed_fn,
