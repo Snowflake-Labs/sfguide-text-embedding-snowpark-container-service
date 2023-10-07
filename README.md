@@ -2,21 +2,118 @@
 
 If you're aiming to deploy a text embedding model to Snowpark Container Services, this code will help! This repo showcases a pure-Python approach to packaging a text embedding model into a Snowpark Container Services service.
 
+## Prerequisites
+
+You will need Python and Docker installed to use this code.
+
 ## Usage
 
-Basic usage involves checking out the examples in the `configurations` directory, picking the example most similar to your needs, copying it, and adapting it.
+Usage involves implementing a custom *configuration* of this text embedding service inside the `configurations/` directory and then running your configuration. Check out the `configurations/quickstart_example/walkthrough.ipynb` notebook to see this in action (feel free to copy this example or adapt it in-place to your needs, too!).
 
+Your configuration need not utilize a Jupyter notebook but can instead consist of whatever combination of scripting (Python scripting, shell scripting, Makefiles, etc.) that gets the job done, where the "job" in this context is to populate the `build` directory and then to use the `libs/buildlib` Python library to build and deploy a Docker image as a Snowpark Container Services Serivce.
 
-### Configuring the Service
+A *configuration* is a script or set of scripts that does the following:
 
+1. Add whatever data your custom service needs to bundle inside it into the `build/data` directory
+   - Data includes model weights, custom Python libraries (packaged as wheel files or similar), etc.
+2. Implement your embedding logic as an `embed.py` file that gets written to or copied into `/build/embed.py` -- see below for details
+    - You must also define any dependencies for your `build/embed.py` in an accompanying `build/requirements.txt` file
+3. Configure the service via creating a `build/config.py` file (see below for details)
+4. Build your service's Docker image via `buildlib.build()`
+    - Once you have built your image, you can optionally test it locally, e.g. via running it using `buildlib.start_locally()` (and `buildlib.stop_locally()` to stop it), then running the end-to-end test via `pytest testint/tests/test_end_to_end.py`
+5. Push your service's Docker image to Snowflake via `buildlib.push()`
+6. Deploy your service via `buildlib.deploy_service()`
 
+### Implementing embedding
 
+Embedding is implemented as a single Python function. This function does two things, load the model and any other data needed from the filesystem, and define the `embed` function that uses the model to convert a `Sequence[str]` of input into a matrix of embeddings (and represents the embeddings as a 2d `numpy` array of `np.float32` values). The `get_embed_fn()` function returns this `embed` function.
 
-### Overview of a configuration
+For loading data from the image, you may find it helpful to leverage the `BUILD_ROOT` environment variable that is defined in the Docker image, as in the example below.
 
+``` python
+# Example contents of `build/embed.py`
+import os
+from pathlib import Path
+from typing import Sequence
+
+import numpy as np
+
+def get_embed_fn() -> Callable[[Sequence[str]], np.ndarray]:
+    # Load the model into memory.
+    data_dir = Path(os.environ["BUILD_ROOT"]) / "data"
+    tokenizer = load_tokenizer(data_dir / "tokenizer")
+    model = load_model(data_dir / "model")
+
+    # Define an embedding function that maps a sequence of strings to a 2d embedding matrix.
+    def embed(texts: Sequence[str]) -> np.ndarray:
+        tokens = tokenizer.tokenize(texts)
+        result_tensor = model.embed(tokens)
+        result_array = result_tensor.cpu().numpy().astype(np.float32)
+        assert result_array.ndim == 2
+        assert result_array.shape[0] == len(texts)
+        return result_array
+
+    return embed
 ```
-TODO: Explain what a configuration should look like!
+
+You will also need to define a `build/requirements.txt` file that instructs the build process to install any dependencies your `build/embed.py` code needs.
+
+``` txt
+# Example contents of `build/requirements.txt`
+pytorch>=2.1
+numpy>=0.24
+transformers
 ```
+
+### Configuring the service
+
+The boring parts of the service (an API, a queue, and a process that pulls from the queue and calls your `embed` function) are already built for you and should work fine for a number of different applications with minimal alteration or configuration. However, some small amount of configuration is required, and a slightly greater amount is possible.
+
+What is required? Just one thing: specifying the dimensionality of your embedding.
+
+What else is configurable? Batch size, input queue length, and max input length.
+- Batch size = maximum number of texts passed as input to your `embed` function
+  - Bigger may be more efficient on GPU, but too big a size might incur memory issues
+- Input queue length = maximum number of texts that the service will keep in memory at once
+  - You can probably leave this as is in most cases, though you can increase from the default value if you are running a fast model or running on a machine type with many CPUs or a GPU
+  - This value must be larger than the value of `external_function_batch_size` used in `buildlib.deploy_service`, or the service will refuse all full batches of input and cause queries to fail.
+  - In general, the input queue length should allow the queue to store no more than 20-25 seconds of embedding work to avoid timeouts
+  - If the warehouse tries to pass in more, the service will tell the warehouse to slow down
+  - Making this too large can cause issues with canceled queries, since there is no mechanism to tell the service to remove items from the queue even if the query that sent in those items has been cancelled
+  - Making this too large can cause issues with timeouts, since if it takes more than 30 seconds for an item to get through the queue, be embedded, and be returned, the warehouse will treat that as a timeout and try again, increasing load on the service
+- Max input length = the longest string (in bytes) allowed as input
+  - Passing in longer inputs will potentially trigger query failures
+  - Large sizes increase memory usage, since memory is preallocated
+
+
+``` python
+# Example contents of `build/config.py
+from service_config import Configuration
+
+USER_CONFIG = Configuration(embedding_dim=768, max_batch_size=8)
+```
+  
+### Building and deploying your custom service
+
+It takes a number of steps to build and deploy a Docker image as a Snowpark Container Services service. To streamline the process, we offer a Python library called `buildlib` which offers a clear API to drive Docker and the Snowflake Python client into carrying out these steps for us.
+
+To install `buildlib`, just use pip: `python -m pip install ./libs/buildlib`
+
+To see `buildlib` in action, check out the example walkthrough notebook: `configurations/quickstart_example/walkthrough.ipynb`.
+
+If you're curious, feel free to check out the source code, it's pretty short! Also, here's a quick synopsis of what `buildlib` does under the hood:
+- `buildlib.build()` uses `python-on-whales` to run `docker build`
+  - Calls the Docker CLI's `docker build` command with all the right arguments (standardized image name, explicit platform, the right path to the Dockerfile, etc.)
+- `buildlib.push()` uses `python-on-whales` to run a few Docker commands
+  - Optionally logs into your Snowflake Docker repository (`docker login`)
+  - Re-tags your service Docker image to point to your Snowflake Docker repository (`docker tag`)
+  - Pushes your service Docker image to Snowflake (`docker push`)
+- `buildlib.deploy_service()` uses the Snowflake Python client to run all the Snowflake SQL you need to deploy the service
+  - Ensures your stage to store your service spec YAML is created
+  - Templates out a service YAML file and pushes it to your spec stage in Snowflake
+  - Runs a `CREATE SERVICE ...` command
+  - Runs several `CREATE FUNCTION ...` commands to set up an `EMBED_TEXT(VARCHAR)` SQL function in Snowflake that calls your new service
+
 
 ## Repo Overview
 
@@ -25,13 +122,14 @@ TODO: Explain what a configuration should look like!
 │   ├── <examples>
 │   ├── <put your code here>
 ├── dockerfiles
-│   ├── Dockerfile             <- recipe to build the service Docker image
+│   ├── Dockerfile             <- prebuilt recipe for the service Docker image
 │   └── Dockerfile.dockerignore
 ├── libs
 │   ├── buildlib               <- configures and executes Docker image building
 │   ├── lodis                  <- provides queueing
 │   ├── multiprocess_logging   <- provides logging
-│   └── simple_lru_cache       <- provides caching
+│   ├── service_config         <- defines the service's configuration convention
+│   └── simple_lru_cache       <- provides caching for the API, currently not used
 ├── README.md
 ├── service_api                <- the API side of the service
 ├── service_embed_loop         <- the embedding side of the service
@@ -41,19 +139,6 @@ TODO: Explain what a configuration should look like!
     └── tests                      <- fast running checks that things are working
 
 ```
-
-### For users
-
-Unless you need to do heavy customization, you can stick primarily inside the `configurations` directory. Once you've taken a stab at creating your own configuration, you'll also probably want to use the tests inside the `testing` directory to make sure things are working as expected.
-
-If you're curious how things come together, e.g. you want to know how the `libs/buildlib` library works to build your Docker image, take a look at the source code -- it's actually fairly straightforward stuff! And of course, nothing stops you from making changes to improve your text embedding service for your needs. Read on
-
-### For developers
-
-```
-TODO: Explain
-```
-
 
 ## Contributing
 
