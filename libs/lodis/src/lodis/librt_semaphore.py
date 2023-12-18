@@ -25,7 +25,10 @@ for librt_name in ("librt.so", "librt.so.1", "libc.so"):
     except OSError:
         pass
 if LIBRT is None:
-    raise RuntimeError("Could not find LIBRT")
+    raise RuntimeError(
+        "Could not find the `librt` shared library. Maybe you're trying to run on a non-Linux OS? "
+        "If so, unfortunately `lodis` does not support that yet."
+    )
 LIBRT.sem_open.restype = POINTER(c_int)  # Cannot be `SemaphoreMemoryAddress`
 LIBRT.sem_trywait.restype = c_int
 LIBRT.sem_wait.restype = c_int
