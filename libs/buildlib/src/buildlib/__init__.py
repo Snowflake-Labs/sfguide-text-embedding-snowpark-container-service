@@ -148,8 +148,7 @@ def deploy_service(
         f"""
         create service {SERVICE_NAME}
             in compute pool {compute_pool}
-            from @{spec_stage}
-            specification = $${spec_yaml}$$
+            from specification\n$${spec_yaml}$$
             min_instances = {min_instances}
             max_instances = {max_instances};
         """
@@ -184,7 +183,7 @@ def deploy_service(
             returns vector(float,{embedding_dim})
             language SQL
             as
-            $$_unpack_binary_array(to_binary(_embed_to_base64(input), 'BASE64'))::vector(float,{embedding_dim}$$;
+            $$_unpack_binary_array(to_binary(_embed_to_base64(input), 'BASE64'))::vector(float,{embedding_dim})$$;
         """
     )
     _run_sql(connection, embed_to_base64_create_statement)
