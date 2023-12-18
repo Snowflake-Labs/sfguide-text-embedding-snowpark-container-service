@@ -2,7 +2,6 @@ from contextlib import contextmanager
 from getpass import getpass
 from io import StringIO
 from pathlib import Path
-from tempfile import TemporaryDirectory
 from textwrap import dedent
 from time import sleep
 from typing import cast
@@ -84,6 +83,7 @@ def _run_sql(
 
 def deploy_service(
     connection: snowflake.connector.connection.SnowflakeConnection,
+    embedding_dim: int,
     role: str,
     database: str,
     schema: str,
@@ -126,7 +126,7 @@ def deploy_service(
         connection, f"use role {role}; use database {database};" f"use schema {schema};"
     )
 
-    # Create and upload the service spec.
+    # Create the service spec.
     spec_yaml = dedent(
         f"""
         spec:
@@ -141,15 +141,6 @@ def deploy_service(
               port: 8000
         """
     )
-    with TemporaryDirectory() as tmp_dir_name:
-        tmp_dir = Path(tmp_dir_name)
-        local_yaml_path = tmp_dir / SPEC_FILE
-        print(f"Writing to {local_yaml_path}:\n{spec_yaml}\n")
-        local_yaml_path.write_text(spec_yaml)
-        _run_sql(connection, f"create stage if not exists {spec_stage};")
-        _run_sql(
-            connection, f"put file://{local_yaml_path} @{spec_stage} overwrite = true;"
-        )
 
     # Create the service.
     _run_sql(connection, f"drop service if exists {SERVICE_NAME};")
@@ -158,7 +149,7 @@ def deploy_service(
         create service {SERVICE_NAME}
             in compute pool {compute_pool}
             from @{spec_stage}
-            spec='{SPEC_FILE}'
+            specification = $${spec_yaml}$$
             min_instances = {min_instances}
             max_instances = {max_instances};
         """
@@ -188,12 +179,12 @@ def deploy_service(
         """
     )
     embed_text_create_statement = dedent(
-        """
+        f"""
         create or replace function embed_text(input string)
-            returns array
+            returns vector(float,{embedding_dim})
             language SQL
             as
-            $$_unpack_binary_array(to_binary(_embed_to_base64(input), 'BASE64'))$$;
+            $$_unpack_binary_array(to_binary(_embed_to_base64(input), 'BASE64'))::vector(float,{embedding_dim}$$;
         """
     )
     _run_sql(connection, embed_to_base64_create_statement)
