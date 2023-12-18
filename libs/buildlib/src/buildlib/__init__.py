@@ -209,7 +209,10 @@ def stop_locally() -> None:
 def start_locally(tag: str = "latest") -> None:
     stop_locally()
     container = docker.run(
-        image=f"{SERVICE_NAME}:{tag}", networks=["host"], name=SERVICE_NAME, detach=True
+        image=f"{SERVICE_NAME}:{tag}",
+        name=SERVICE_NAME,
+        detach=True,
+        publish=[("8000", "8000")],
     )
     container = cast(Container, container)
 
