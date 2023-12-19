@@ -15,8 +15,15 @@ classifiers = [
 dependencies = [
     "python-on-whales>=0.64",
     "snowflake-connector-python[pandas]>=3.2.1",
+    "PyYAML==6.0.1",
 ]
 
 [build-system]
 requires = ["setuptools>=61.0"]
 build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+"buildlib" = ["py.typed"]

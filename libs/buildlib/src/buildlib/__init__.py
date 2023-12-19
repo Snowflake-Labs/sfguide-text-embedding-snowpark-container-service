@@ -2,8 +2,8 @@ from contextlib import contextmanager
 from getpass import getpass
 from io import StringIO
 from pathlib import Path
-from tempfile import TemporaryDirectory
 from textwrap import dedent
+from textwrap import indent
 from time import sleep
 from typing import cast
 from typing import Iterator
@@ -11,6 +11,7 @@ from typing import Literal
 from typing import Optional
 
 import snowflake.connector.util_text
+import yaml
 from python_on_whales import Container
 from python_on_whales import docker
 
@@ -84,6 +85,8 @@ def _run_sql(
 
 def deploy_service(
     connection: snowflake.connector.connection.SnowflakeConnection,
+    embedding_dim: int,
+    num_gpus: int,
     role: str,
     database: str,
     schema: str,
@@ -126,42 +129,47 @@ def deploy_service(
         connection, f"use role {role}; use database {database};" f"use schema {schema};"
     )
 
-    # Create and upload the service spec.
-    spec_yaml = dedent(
-        f"""
-        spec:
-          containers:
-            - name: {SERVICE_NAME.replace("_", "-")}
-              image: /{image_database}/{image_schema}/{image_repository}/{SERVICE_NAME}:{image_tag}
-              readinessProbe:
-                port: 8000
-                path: /healthcheck
-          endpoint:
-            - name: endpoint
-              port: 8000
-        """
-    )
-    with TemporaryDirectory() as tmp_dir_name:
-        tmp_dir = Path(tmp_dir_name)
-        local_yaml_path = tmp_dir / SPEC_FILE
-        print(f"Writing to {local_yaml_path}:\n{spec_yaml}\n")
-        local_yaml_path.write_text(spec_yaml)
-        _run_sql(connection, f"create stage if not exists {spec_stage};")
-        _run_sql(
-            connection, f"put file://{local_yaml_path} @{spec_stage} overwrite = true;"
-        )
+    # Create the service spec.
+    spec = {
+        "spec": {
+            "containers": [
+                {
+                    "name": SERVICE_NAME.replace("_", "-"),
+                    "image": f"/{image_database}/{image_schema}/{image_repository}/{SERVICE_NAME}:{image_tag}",
+                    "readinessProbe": {"port": 8000, "path": "/healthcheck"},
+                }
+            ],
+            "endpoint": [{"name": "endpoint", "port": 8000}],
+        }
+    }
+    if num_gpus > 0:
+        spec["spec"]["containers"][0]["resources"] = {
+            "requests": {"nvidia.com/gpu": num_gpus},
+            "limits": {"nvidia.com/gpu": num_gpus},
+        }
+    spec_yaml = yaml.dump(spec, Dumper=yaml.SafeDumper)
 
     # Create the service.
     _run_sql(connection, f"drop service if exists {SERVICE_NAME};")
-    create_statement = dedent(
-        f"""
+    create_statement = (
+        dedent(
+            f"""
         create service {SERVICE_NAME}
             in compute pool {compute_pool}
-            from @{spec_stage}
-            spec='{SPEC_FILE}'
+            from specification $$
+        """
+        )
+        + indent(spec_yaml, " " * 8)
+        + indent(
+            dedent(
+                f"""
+            $$
             min_instances = {min_instances}
             max_instances = {max_instances};
         """
+            ),
+            " " * 4,
+        )
     )
     _run_sql(connection, create_statement)
 
@@ -188,12 +196,12 @@ def deploy_service(
         """
     )
     embed_text_create_statement = dedent(
-        """
+        f"""
         create or replace function embed_text(input string)
-            returns array
+            returns vector(float,{embedding_dim})
             language SQL
             as
-            $$_unpack_binary_array(to_binary(_embed_to_base64(input), 'BASE64'))$$;
+            $$_unpack_binary_array(to_binary(_embed_to_base64(input), 'BASE64'))::vector(float,{embedding_dim})$$;
         """
     )
     _run_sql(connection, embed_to_base64_create_statement)
@@ -218,7 +226,10 @@ def stop_locally() -> None:
 def start_locally(tag: str = "latest") -> None:
     stop_locally()
     container = docker.run(
-        image=f"{SERVICE_NAME}:{tag}", networks=["host"], name=SERVICE_NAME, detach=True
+        image=f"{SERVICE_NAME}:{tag}",
+        name=SERVICE_NAME,
+        detach=True,
+        publish=[("8000", "8000")],
     )
     container = cast(Container, container)
 
