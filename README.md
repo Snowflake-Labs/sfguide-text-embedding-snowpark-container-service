@@ -12,7 +12,7 @@ You will need Python and Docker installed to use this code.
 
 Usage involves implementing a custom *configuration* of this text embedding service inside the `configurations/` directory and then running your configuration. Copying the `configurations/quickstart_example` and editing it to suit your needs is a great way to implement and run a configuration of your own.
 
-While the `quickstart_example` shows each step in a noteboo, your configuration need not utilize a Jupyter notebook at all. You can use whatever kind of scripting (e.g. Python scripting, shell scripting, Makefiles, etc.) that gets the job done, where the "job" in this context is to populate the `build` directory and then to use the `libs/buildlib` Python library to build and deploy a Docker image as a Snowpark Container Services Serivce.
+While the `quickstart_example` shows each step in a notebook, your configuration need not utilize a Jupyter notebook at all. You can use whatever kind of scripting (e.g. Python scripting, shell scripting, Makefiles, etc.) that gets the job done, where the "job" in this context is to populate the `build` directory and then to use the `libs/buildlib` Python library to build and deploy a Docker image as a Snowpark Container Services Serivce.
 
 This brings us to the definition of a *configuration*. A *configuration* is a script or set of scripts that does the following:
 
