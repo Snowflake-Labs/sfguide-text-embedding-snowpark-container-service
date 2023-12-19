@@ -3,6 +3,7 @@ from getpass import getpass
 from io import StringIO
 from pathlib import Path
 from textwrap import dedent
+from textwrap import indent
 from time import sleep
 from typing import cast
 from typing import Iterator
@@ -10,6 +11,7 @@ from typing import Literal
 from typing import Optional
 
 import snowflake.connector.util_text
+import yaml
 from python_on_whales import Container
 from python_on_whales import docker
 
@@ -84,6 +86,7 @@ def _run_sql(
 def deploy_service(
     connection: snowflake.connector.connection.SnowflakeConnection,
     embedding_dim: int,
+    num_gpus: int,
     role: str,
     database: str,
     schema: str,
@@ -127,31 +130,46 @@ def deploy_service(
     )
 
     # Create the service spec.
-    spec_yaml = dedent(
-        f"""
-        spec:
-          containers:
-            - name: {SERVICE_NAME.replace("_", "-")}
-              image: /{image_database}/{image_schema}/{image_repository}/{SERVICE_NAME}:{image_tag}
-              readinessProbe:
-                port: 8000
-                path: /healthcheck
-          endpoint:
-            - name: endpoint
-              port: 8000
-        """
-    )
+    spec = {
+        "spec": {
+            "containers": [
+                {
+                    "name": SERVICE_NAME.replace("_", "-"),
+                    "image": f"/{image_database}/{image_schema}/{image_repository}/{SERVICE_NAME}:{image_tag}",
+                    "readinessProbe": {"port": 8000, "path": "/healthcheck"},
+                }
+            ],
+            "endpoint": [{"name": "endpoint", "port": 8000}],
+        }
+    }
+    if num_gpus > 0:
+        spec["spec"]["containers"][0]["resources"] = {
+            "requests": {"nvidia.com/gpu": num_gpus},
+            "limits": {"nvidia.com/gpu": num_gpus},
+        }
+    spec_yaml = yaml.dump(spec, Dumper=yaml.SafeDumper)
 
     # Create the service.
     _run_sql(connection, f"drop service if exists {SERVICE_NAME};")
-    create_statement = dedent(
-        f"""
+    create_statement = (
+        dedent(
+            f"""
         create service {SERVICE_NAME}
             in compute pool {compute_pool}
-            from specification\n$${spec_yaml}$$
+            from specification $$
+        """
+        )
+        + indent(spec_yaml, " " * 8)
+        + indent(
+            dedent(
+                f"""
+            $$
             min_instances = {min_instances}
             max_instances = {max_instances};
         """
+            ),
+            " " * 4,
+        )
     )
     _run_sql(connection, create_statement)
 
