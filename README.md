@@ -8,11 +8,13 @@ You will need Python and Docker installed to use this code.
 
 ## Usage
 
-Usage involves implementing a custom *configuration* of this text embedding service inside the `configurations/` directory and then running your configuration. Check out the `configurations/quickstart_example/walkthrough.ipynb` notebook to see this in action (feel free to copy this example or adapt it in-place to your needs, too!).
+**NOTE:** The best way to understand how to use this project is to check out the example walkthrough notebook `configurations/quickstart_example/walkthrough.ipynb`. Not only does this showcase every step that's required, but it also includes tricks (e.g. for debugging) and explanations of each step.
 
-Your configuration need not utilize a Jupyter notebook but can instead consist of whatever combination of scripting (Python scripting, shell scripting, Makefiles, etc.) that gets the job done, where the "job" in this context is to populate the `build` directory and then to use the `libs/buildlib` Python library to build and deploy a Docker image as a Snowpark Container Services Serivce.
+Usage involves implementing a custom *configuration* of this text embedding service inside the `configurations/` directory and then running your configuration. Copying the `configurations/quickstart_example` and editing it to suit your needs is a great way to implement and run a configuration of your own.
 
-A *configuration* is a script or set of scripts that does the following:
+While the `quickstart_example` shows each step in a noteboo, your configuration need not utilize a Jupyter notebook at all. You can use whatever kind of scripting (e.g. Python scripting, shell scripting, Makefiles, etc.) that gets the job done, where the "job" in this context is to populate the `build` directory and then to use the `libs/buildlib` Python library to build and deploy a Docker image as a Snowpark Container Services Serivce.
+
+This brings us to the definition of a *configuration*. A *configuration* is a script or set of scripts that does the following:
 
 1. Add whatever data your custom service needs to bundle inside it into the `build/data` directory
    - Data includes model weights, custom Python libraries (packaged as wheel files or similar), etc.
@@ -26,9 +28,9 @@ A *configuration* is a script or set of scripts that does the following:
 
 ### Implementing embedding
 
-Embedding is implemented as a single Python function. This function does two things, load the model and any other data needed from the filesystem, and define the `embed` function that uses the model to convert a `Sequence[str]` of input into a matrix of embeddings (and represents the embeddings as a 2d `numpy` array of `np.float32` values). The `get_embed_fn()` function returns this `embed` function.
+In this project, the core logic of text embedding is implemented as a single Python function called `get_embed_fn()`. This function does two things, load the model and any other data needed from the filesystem, and define an `embed` function that uses this (now loaded) model to transform a `Sequence[str]` of input into a matrix of embeddings (as a 2d `numpy` array of `np.float32` values).
 
-For loading data from the image, you may find it helpful to leverage the `BUILD_ROOT` environment variable that is defined in the Docker image, as in the example below.
+For configuring your `get_embed_fn()` to load data (like model weights) correctly when it is packaged into the service Docker image, you may find it helpful to leverage the `BUILD_ROOT` environment variable, which will be preopoulated in the Docker image for you. The example below demonstrates one way you can use this environment variable when loading model weights.
 
 ``` python
 # Example contents of `build/embed.py`
@@ -109,9 +111,7 @@ If you're curious, feel free to check out the source code, it's pretty short! Al
   - Re-tags your service Docker image to point to your Snowflake Docker repository (`docker tag`)
   - Pushes your service Docker image to Snowflake (`docker push`)
 - `buildlib.deploy_service()` uses the Snowflake Python client to run all the Snowflake SQL you need to deploy the service
-  - Ensures your stage to store your service spec YAML is created
-  - Templates out a service YAML file and pushes it to your spec stage in Snowflake
-  - Runs a `CREATE SERVICE ...` command
+  - Templates out a service YAML spec and runs a `CREATE SERVICE ...` command using that spec
   - Runs several `CREATE FUNCTION ...` commands to set up an `EMBED_TEXT(VARCHAR)` SQL function in Snowflake that calls your new service
 
 
@@ -135,8 +135,8 @@ If you're curious, feel free to check out the source code, it's pretty short! Al
 ├── service_embed_loop         <- the embedding side of the service
 ├── services_common_code       <- logic shared between the API and the embed loop
 └── testing                    <- tools for testing your service locally
-    ├── perf_test_scripts          <- longer running evaluations of performance
-    └── tests                      <- fast running checks that things are working
+    ├── perf_test_scripts      <- longer running evaluations of performance
+    └── tests                  <- fast running checks that things are working
 
 ```
 
@@ -146,7 +146,7 @@ If you'd like to contribute, please just open a pull request! We kindly ask that
 
 ### Setting up your development environment
 
-Everything here targets building a Docker image based off of the `python:3.8.16-bullseye` base image, so you may run into issues if you are not developing on a Debian-like Linux environment and using Python 3.8+. If you do run into issues, consider [developing inside a container with Visual Studio Code](https://code.visualstudio.com/docs/devcontainers/containers), though be aware that this might make some of the Docker stuff trickier.
+Everything here targets building a Linux Docker image, so you may run into issues if you are not developing on a Debian-like Linux environment. If you do run into issues, consider [developing inside a container with Visual Studio Code](https://code.visualstudio.com/docs/devcontainers/containers), though be aware that this might make some of the Docker stuff trickier.
 
 You may want to create a dedicated Python 3.8+ [virtual environment](https://docs.python.org/3/library/venv.html) for this part.
 
@@ -170,7 +170,7 @@ pre-commit install
 
 ### Running tests
 
-The libraries have a fair amount of test coverage. Use [pytest](https://pytest.org) to run the tests.
+The libraries have a fair amount of test coverage. Use [pytest](https://pytest.org) to run the tests. Note that `lodis` and `multiprocess_logging` are currently Linux-only, so the tests will not pass on other OSes.
 
 ``` shell
 pytest libs
