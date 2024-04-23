@@ -178,7 +178,8 @@ def deploy_service(
         f"""
         create or replace function _embed_to_base64(input string)
             returns string
-            service={SERVICE_NAME}!endpoint
+            service={SERVICE_NAME}
+            endpoint=endpoint
             max_batch_rows={external_function_batch_size}
             as '/embed';
         """
